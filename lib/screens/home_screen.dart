@@ -1,4 +1,4 @@
-```dart
+import 'active_trip_screen.dart';
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -131,7 +131,14 @@ class HomeScreen extends StatelessWidget {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                        builder: (context) => const ActiveTripScreen(),
+                        ),
+                    );
+                    },
                   icon: const Icon(Icons.play_arrow),
                   label: const Text(
                     'START TRIP',
@@ -202,4 +209,4 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
-```
+
