@@ -1,4 +1,3 @@
-```dart
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 
@@ -26,4 +25,4 @@ class DriveGuardApp extends StatelessWidget {
     );
   }
 }
-```
+

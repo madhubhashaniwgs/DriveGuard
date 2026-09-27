@@ -1,8 +1,53 @@
-```dart
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-class ActiveTripScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+
+import '../services/sensor_service.dart';
+
+class ActiveTripScreen extends StatefulWidget {
   const ActiveTripScreen({super.key});
+
+  @override
+  State<ActiveTripScreen> createState() => _ActiveTripScreenState();
+}
+
+class _ActiveTripScreenState extends State<ActiveTripScreen> {
+  final SensorService _sensorService = SensorService();
+
+  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
+
+  double _x = 0;
+  double _y = 0;
+  double _z = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _startAccelerometer();
+  }
+
+  void _startAccelerometer() {
+    _accelerometerSubscription =
+        accelerometerEventStream().listen((AccelerometerEvent event) {
+      if (!mounted) return;
+
+      setState(() {
+        _x = event.x;
+        _y = event.y;
+        _z = event.z;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _accelerometerSubscription?.cancel();
+    _sensorService.stopAccelerometer();
+
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +61,6 @@ class ActiveTripScreen extends StatelessWidget {
         foregroundColor: const Color(0xFF212121),
         elevation: 0,
       ),
-
       body: Container(
         color: const Color(0xFFFFF8E1),
         child: SingleChildScrollView(
@@ -53,47 +97,36 @@ class ActiveTripScreen extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // Speed
+              // Accelerometer X
               _SensorCard(
-                title: 'Speed',
-                value: '0.0',
-                unit: 'km/h',
-                icon: Icons.speed,
-              ),
-
-              const SizedBox(height: 15),
-
-              // Accelerometer
-              _SensorCard(
-                title: 'Acceleration',
-                value: '0.0',
+                title: 'X Axis',
+                value: _x.toStringAsFixed(2),
                 unit: 'm/s²',
-                icon: Icons.sensors,
+                icon: Icons.swap_horiz,
               ),
 
               const SizedBox(height: 15),
 
-              // Gyroscope
+              // Accelerometer Y
               _SensorCard(
-                title: 'Rotation',
-                value: '0.0',
-                unit: 'rad/s',
-                icon: Icons.rotate_right,
+                title: 'Y Axis',
+                value: _y.toStringAsFixed(2),
+                unit: 'm/s²',
+                icon: Icons.swap_vert,
               ),
 
               const SizedBox(height: 15),
 
-              // GPS
+              // Accelerometer Z
               _SensorCard(
-                title: 'GPS',
-                value: 'Waiting',
-                unit: '',
-                icon: Icons.location_on,
+                title: 'Z Axis',
+                value: _z.toStringAsFixed(2),
+                unit: 'm/s²',
+                icon: Icons.height,
               ),
 
               const SizedBox(height: 25),
 
-              // Stop Trip
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -161,9 +194,7 @@ class _SensorCard extends StatelessWidget {
               size: 30,
             ),
           ),
-
           const SizedBox(width: 15),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,15 +216,13 @@ class _SensorCard extends StatelessWidget {
                         color: Color(0xFF212121),
                       ),
                     ),
-                    if (unit.isNotEmpty) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        unit,
-                        style: const TextStyle(
-                          color: Color(0xFF666666),
-                        ),
+                    const SizedBox(width: 6),
+                    Text(
+                      unit,
+                      style: const TextStyle(
+                        color: Color(0xFF666666),
                       ),
-                    ],
+                    ),
                   ],
                 ),
               ],
@@ -204,4 +233,4 @@ class _SensorCard extends StatelessWidget {
     );
   }
 }
-```
+
