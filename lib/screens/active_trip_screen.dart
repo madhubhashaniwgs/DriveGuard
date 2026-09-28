@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/sensor_data.dart';
+import '../models/driving_event_data.dart';
 import '../services/gravity_estimator.dart';
 import '../services/sensor_data_recorder.dart';
 import '../services/sensor_filter.dart';
 import '../services/sensor_metrics_service.dart';
 import '../services/sensor_service.dart';
+import '../services/driving_event_detector.dart';
+import '../services/motion_calibration_service.dart';
 
 class ActiveTripScreen extends StatefulWidget {
   const ActiveTripScreen({super.key});
@@ -23,27 +26,41 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   final GravityEstimator _gravityEstimator = GravityEstimator();
   final SensorMetricsService _metricsService = SensorMetricsService();
 
+  final MotionCalibrationService _motionCalibrationService =
+      MotionCalibrationService();
+
+  final DrivingEventDetector _drivingEventDetector =
+      DrivingEventDetector();
+
+  DrivingEventData? _lastDrivingEvent;
+
   StreamSubscription<SensorData>? _sensorDataSubscription;
 
-  // Accelerometer values
+  // Accelerometer
   double _accX = 0;
   double _accY = 0;
   double _accZ = 0;
 
-  // Gyroscope values
+  // Gyroscope
   double _gyroX = 0;
   double _gyroY = 0;
   double _gyroZ = 0;
 
-  // Calculated metrics
+  // Magnetometer
+  double _magX = 0;
+  double _magY = 0;
+  double _magZ = 0;
+
+  // Metrics
   double _totalAcceleration = 0;
   double _linearAcceleration = 0;
   double _angularVelocity = 0;
+  double _longitudinalAcceleration = 0;
+  double _lateralAcceleration = 0;
 
   @override
   void initState() {
     super.initState();
-
     _startSensors();
   }
 
@@ -52,29 +69,56 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     _gravityEstimator.reset();
     _sensorDataRecorder.startRecording();
 
+    if (!_motionCalibrationService.isCalibrated) {
+      _motionCalibrationService.calibratePhoneTopAsForward();
+    }
+
     _sensorService.start();
 
     _sensorDataSubscription =
         _sensorService.sensorDataStream.listen((SensorData rawData) {
       if (!mounted) return;
 
-      // 1. Store original raw sensor data
+      // 1. Record raw sensor data.
       _sensorDataRecorder.record(rawData);
 
-      // 2. Smooth noisy sensor values
+      // 2. Filter sensor data.
       final filteredData = _sensorFilter.filter(rawData);
 
-      // 3. Remove gravity
+      // 3. Remove gravity.
       final linearAccelerationData =
           _gravityEstimator.removeGravity(filteredData);
 
-      // 4. Calculate metrics
+      // 4. Calculate general metrics.
       final metrics = _metricsService.calculate(
         totalAccelerationData: filteredData,
         linearAccelerationData: linearAccelerationData,
       );
 
-      // 5. Update UI
+      // 5. Calculate calibrated longitudinal acceleration.
+      final longitudinalAcceleration =
+          _motionCalibrationService.calculateLongitudinalAcceleration(
+        accelerationX: linearAccelerationData.accelerometerX,
+        accelerationY: linearAccelerationData.accelerometerY,
+        accelerationZ: linearAccelerationData.accelerometerZ,
+      );
+
+      // 6. Current MVP lateral axis.
+      final lateralAcceleration =
+          linearAccelerationData.accelerometerX;
+
+      // 7. Detect driving event.
+      final drivingEvent = _drivingEventDetector.detect(
+        timestamp: rawData.timestamp,
+        longitudinalAcceleration: longitudinalAcceleration,
+        lateralAcceleration: lateralAcceleration,
+      );
+
+      // Save only meaningful events.
+      if (drivingEvent.type.name != 'normal') {
+        _sensorDataRecorder.recordDrivingEvent(drivingEvent);
+      }
+
       setState(() {
         _accX = filteredData.accelerometerX;
         _accY = filteredData.accelerometerY;
@@ -84,32 +128,47 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         _gyroY = filteredData.gyroscopeY;
         _gyroZ = filteredData.gyroscopeZ;
 
+        _magX = filteredData.magnetometerX;
+        _magY = filteredData.magnetometerY;
+        _magZ = filteredData.magnetometerZ;
+
         _totalAcceleration = metrics.accelerationMagnitude;
         _linearAcceleration = metrics.linearAccelerationMagnitude;
         _angularVelocity = metrics.angularVelocityMagnitude;
+
+        _longitudinalAcceleration = longitudinalAcceleration;
+        _lateralAcceleration = lateralAcceleration;
+
+        if (drivingEvent.type.name != 'normal') {
+          _lastDrivingEvent = drivingEvent;
+        }
       });
 
-      // 6. Debug output
       debugPrint(
-        'Total acceleration: '
+        'Total: '
         '${metrics.accelerationMagnitude.toStringAsFixed(2)} m/s² | '
-        'Linear acceleration: '
+        'Linear: '
         '${metrics.linearAccelerationMagnitude.toStringAsFixed(2)} m/s² | '
-        'Angular velocity: '
-        '${metrics.angularVelocityMagnitude.toStringAsFixed(2)} rad/s',
+        'Longitudinal: '
+        '${longitudinalAcceleration.toStringAsFixed(2)} m/s² | '
+        'Lateral: '
+        '${lateralAcceleration.toStringAsFixed(2)} m/s² | '
+        'Angular: '
+        '${metrics.angularVelocityMagnitude.toStringAsFixed(2)} rad/s | '
+        'Event: ${drivingEvent.type.name}',
       );
     });
   }
 
   void _stopTrip() {
-    // Stop receiving sensor data
+    // Stop listening to sensor stream.
     _sensorDataSubscription?.cancel();
     _sensorDataSubscription = null;
 
-    // Stop sensor streams
+    // Stop sensor service.
     _sensorService.stop();
 
-    // Complete current trip
+    // Complete trip recording.
     final completedTrip = _sensorDataRecorder.stopRecording();
 
     if (completedTrip != null) {
@@ -118,9 +177,14 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       debugPrint('End time: ${completedTrip.endTime}');
       debugPrint('Duration: ${completedTrip.duration}');
       debugPrint('Sensor records: ${completedTrip.sensorDataCount}');
+      debugPrint(
+        'Driving events: ${completedTrip.drivingEvents.length}',
+      );
     }
 
-    Navigator.pop(context);
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   @override
@@ -182,7 +246,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 25),
 
-              // Metrics Section
+              // Driving Metrics
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -216,15 +280,101 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
               const SizedBox(height: 15),
 
               _SensorCard(
+                title: 'Longitudinal Acceleration',
+                value: _longitudinalAcceleration.toStringAsFixed(2),
+                unit: 'm/s²',
+                icon: Icons.arrow_forward,
+              ),
+
+              const SizedBox(height: 15),
+
+              _SensorCard(
+                title: 'Lateral Acceleration',
+                value: _lateralAcceleration.toStringAsFixed(2),
+                unit: 'm/s²',
+                icon: Icons.compare_arrows,
+              ),
+
+              const SizedBox(height: 15),
+
+              _SensorCard(
                 title: 'Angular Velocity',
                 value: _angularVelocity.toStringAsFixed(2),
                 unit: 'rad/s',
                 icon: Icons.screen_rotation,
               ),
 
+              const SizedBox(height: 15),
+
+              // Driving Event
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3E0),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Color(0xFFFF9800),
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Driving Event',
+                            style: TextStyle(
+                              color: Color(0xFF666666),
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            _lastDrivingEvent?.type.name ?? 'normal',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF212121),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Value: '
+                            '${_lastDrivingEvent?.value.toStringAsFixed(2) ?? '0.00'}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF666666),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 30),
 
-              // Accelerometer Section
+              // Accelerometer
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -266,7 +416,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 30),
 
-              // Gyroscope Section
+              // Gyroscope
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -304,6 +454,48 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                 value: _gyroZ.toStringAsFixed(2),
                 unit: 'rad/s',
                 icon: Icons.sync,
+              ),
+
+              const SizedBox(height: 30),
+
+              // Magnetometer
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Magnetometer',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF212121),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              _SensorCard(
+                title: 'Mag X',
+                value: _magX.toStringAsFixed(2),
+                unit: 'µT',
+                icon: Icons.explore,
+              ),
+
+              const SizedBox(height: 15),
+
+              _SensorCard(
+                title: 'Mag Y',
+                value: _magY.toStringAsFixed(2),
+                unit: 'µT',
+                icon: Icons.explore,
+              ),
+
+              const SizedBox(height: 15),
+
+              _SensorCard(
+                title: 'Mag Z',
+                value: _magZ.toStringAsFixed(2),
+                unit: 'µT',
+                icon: Icons.explore,
               ),
 
               const SizedBox(height: 30),

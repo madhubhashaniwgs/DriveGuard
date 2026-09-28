@@ -1,17 +1,23 @@
+import 'driving_event_data.dart';
 import 'sensor_data.dart';
 
 class TripData {
   final String tripId;
   final DateTime startTime;
+
   DateTime? endTime;
+
   final List<SensorData> sensorData;
+  final List<DrivingEventData> drivingEvents;
 
   TripData({
     required this.tripId,
     required this.startTime,
     this.endTime,
     List<SensorData>? sensorData,
-  }) : sensorData = sensorData ?? [];
+    List<DrivingEventData>? drivingEvents,
+  })  : sensorData = sensorData ?? [],
+        drivingEvents = drivingEvents ?? [];
 
   bool get isCompleted => endTime != null;
 
@@ -22,4 +28,6 @@ class TripData {
   }
 
   int get sensorDataCount => sensorData.length;
+
+  int get drivingEventCount => drivingEvents.length;
 }

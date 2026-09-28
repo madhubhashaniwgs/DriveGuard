@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 
+import '../models/driving_event_data.dart';
 import '../models/sensor_data.dart';
 import '../models/trip_data.dart';
 
@@ -14,6 +15,8 @@ class SensorDataRecorder {
 
   int get dataCount => _currentTrip?.sensorDataCount ?? 0;
 
+  int get eventCount => _currentTrip?.drivingEventCount ?? 0;
+
   void startRecording() {
     if (isRecording) return;
 
@@ -27,6 +30,16 @@ class SensorDataRecorder {
     if (!isRecording) return;
 
     _currentTrip!.sensorData.add(data);
+  }
+
+  void recordDrivingEvent(DrivingEventData event) {
+    if (!isRecording) return;
+
+    if (event.type.name == 'normal') {
+      return;
+    }
+
+    _currentTrip!.drivingEvents.add(event);
   }
 
   TripData? stopRecording() {

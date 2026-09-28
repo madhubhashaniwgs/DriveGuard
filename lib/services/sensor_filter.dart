@@ -1,9 +1,6 @@
 import '../models/sensor_data.dart';
 
 class SensorFilter {
-  // Smoothing factor.
-  // Smaller value = more smoothing.
-  // Larger value = faster response.
   final double alpha;
 
   double? _accX;
@@ -13,6 +10,10 @@ class SensorFilter {
   double? _gyroX;
   double? _gyroY;
   double? _gyroZ;
+
+  double? _magX;
+  double? _magY;
+  double? _magZ;
 
   SensorFilter({
     this.alpha = 0.2,
@@ -27,18 +28,31 @@ class SensorFilter {
     _gyroY = _smooth(_gyroY, rawData.gyroscopeY);
     _gyroZ = _smooth(_gyroZ, rawData.gyroscopeZ);
 
+    _magX = _smooth(_magX, rawData.magnetometerX);
+    _magY = _smooth(_magY, rawData.magnetometerY);
+    _magZ = _smooth(_magZ, rawData.magnetometerZ);
+
     return SensorData(
       timestamp: rawData.timestamp,
+
       accelerometerX: _accX!,
       accelerometerY: _accY!,
       accelerometerZ: _accZ!,
+
       gyroscopeX: _gyroX!,
       gyroscopeY: _gyroY!,
       gyroscopeZ: _gyroZ!,
+
+      magnetometerX: _magX!,
+      magnetometerY: _magY!,
+      magnetometerZ: _magZ!,
     );
   }
 
-  double _smooth(double? previousValue, double currentValue) {
+  double _smooth(
+    double? previousValue,
+    double currentValue,
+  ) {
     if (previousValue == null) {
       return currentValue;
     }
@@ -55,5 +69,9 @@ class SensorFilter {
     _gyroX = null;
     _gyroY = null;
     _gyroZ = null;
+
+    _magX = null;
+    _magY = null;
+    _magZ = null;
   }
 }

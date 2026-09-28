@@ -7,6 +7,7 @@ import '../models/sensor_data.dart';
 class SensorService {
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
+  StreamSubscription<MagnetometerEvent>? _magnetometerSubscription;
 
   double _accelerometerX = 0;
   double _accelerometerY = 0;
@@ -15,6 +16,10 @@ class SensorService {
   double _gyroscopeX = 0;
   double _gyroscopeY = 0;
   double _gyroscopeZ = 0;
+
+  double _magnetometerX = 0;
+  double _magnetometerY = 0;
+  double _magnetometerZ = 0;
 
   final StreamController<SensorData> _sensorDataController =
       StreamController<SensorData>.broadcast();
@@ -41,18 +46,34 @@ class SensorService {
         _emitSensorData();
       },
     );
+
+    _magnetometerSubscription = magnetometerEventStream().listen(
+      (event) {
+        _magnetometerX = event.x;
+        _magnetometerY = event.y;
+        _magnetometerZ = event.z;
+
+        _emitSensorData();
+      },
+    );
   }
 
   void _emitSensorData() {
     _sensorDataController.add(
       SensorData(
         timestamp: DateTime.now(),
+
         accelerometerX: _accelerometerX,
         accelerometerY: _accelerometerY,
         accelerometerZ: _accelerometerZ,
+
         gyroscopeX: _gyroscopeX,
         gyroscopeY: _gyroscopeY,
         gyroscopeZ: _gyroscopeZ,
+
+        magnetometerX: _magnetometerX,
+        magnetometerY: _magnetometerY,
+        magnetometerZ: _magnetometerZ,
       ),
     );
   }
@@ -60,9 +81,11 @@ class SensorService {
   void stop() {
     _accelerometerSubscription?.cancel();
     _gyroscopeSubscription?.cancel();
+    _magnetometerSubscription?.cancel();
 
     _accelerometerSubscription = null;
     _gyroscopeSubscription = null;
+    _magnetometerSubscription = null;
   }
 
   void dispose() {
