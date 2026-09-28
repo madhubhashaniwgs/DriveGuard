@@ -1,7 +1,7 @@
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 
 import '../services/sensor_service.dart';
 
@@ -15,28 +15,50 @@ class ActiveTripScreen extends StatefulWidget {
 class _ActiveTripScreenState extends State<ActiveTripScreen> {
   final SensorService _sensorService = SensorService();
 
-  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
+  StreamSubscription<SensorData>? _accelerometerSubscription;
+  StreamSubscription<SensorData>? _gyroscopeSubscription;
 
-  double _x = 0;
-  double _y = 0;
-  double _z = 0;
+  // Accelerometer values
+  double _accX = 0;
+  double _accY = 0;
+  double _accZ = 0;
+
+  // Gyroscope values
+  double _gyroX = 0;
+  double _gyroY = 0;
+  double _gyroZ = 0;
 
   @override
   void initState() {
     super.initState();
 
-    _startAccelerometer();
+    _startSensors();
   }
 
-  void _startAccelerometer() {
+  void _startSensors() {
+    _sensorService.startSensors();
+
+    // Listen to accelerometer data
     _accelerometerSubscription =
-        accelerometerEventStream().listen((AccelerometerEvent event) {
+        _sensorService.accelerometerStream.listen((SensorData data) {
       if (!mounted) return;
 
       setState(() {
-        _x = event.x;
-        _y = event.y;
-        _z = event.z;
+        _accX = data.x;
+        _accY = data.y;
+        _accZ = data.z;
+      });
+    });
+
+    // Listen to gyroscope data
+    _gyroscopeSubscription =
+        _sensorService.gyroscopeStream.listen((SensorData data) {
+      if (!mounted) return;
+
+      setState(() {
+        _gyroX = data.x;
+        _gyroY = data.y;
+        _gyroZ = data.z;
       });
     });
   }
@@ -44,7 +66,9 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   @override
   void dispose() {
     _accelerometerSubscription?.cancel();
-    _sensorService.stopAccelerometer();
+    _gyroscopeSubscription?.cancel();
+
+    _sensorService.dispose();
 
     super.dispose();
   }
@@ -55,7 +79,9 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       appBar: AppBar(
         title: const Text(
           'Active Trip',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
         ),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF212121),
@@ -67,7 +93,9 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              // Trip Status
+              // ------------------------------------------------------------
+              // TRIP STATUS
+              // ------------------------------------------------------------
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -95,12 +123,29 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 25),
+
+              // ------------------------------------------------------------
+              // ACCELEROMETER SECTION
+              // ------------------------------------------------------------
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Accelerometer',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF212121),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 15),
 
               // Accelerometer X
               _SensorCard(
                 title: 'X Axis',
-                value: _x.toStringAsFixed(2),
+                value: _accX.toStringAsFixed(2),
                 unit: 'm/s²',
                 icon: Icons.swap_horiz,
               ),
@@ -110,7 +155,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
               // Accelerometer Y
               _SensorCard(
                 title: 'Y Axis',
-                value: _y.toStringAsFixed(2),
+                value: _accY.toStringAsFixed(2),
                 unit: 'm/s²',
                 icon: Icons.swap_vert,
               ),
@@ -120,13 +165,63 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
               // Accelerometer Z
               _SensorCard(
                 title: 'Z Axis',
-                value: _z.toStringAsFixed(2),
+                value: _accZ.toStringAsFixed(2),
                 unit: 'm/s²',
                 icon: Icons.height,
               ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 30),
 
+              // ------------------------------------------------------------
+              // GYROSCOPE SECTION
+              // ------------------------------------------------------------
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Gyroscope',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF212121),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              // Gyroscope X
+              _SensorCard(
+                title: 'Gyro X',
+                value: _gyroX.toStringAsFixed(2),
+                unit: 'rad/s',
+                icon: Icons.rotate_90_degrees_ccw,
+              ),
+
+              const SizedBox(height: 15),
+
+              // Gyroscope Y
+              _SensorCard(
+                title: 'Gyro Y',
+                value: _gyroY.toStringAsFixed(2),
+                unit: 'rad/s',
+                icon: Icons.rotate_90_degrees_cw,
+              ),
+
+              const SizedBox(height: 15),
+
+              // Gyroscope Z
+              _SensorCard(
+                title: 'Gyro Z',
+                value: _gyroZ.toStringAsFixed(2),
+                unit: 'rad/s',
+                icon: Icons.sync,
+              ),
+
+              const SizedBox(height: 30),
+
+              // ------------------------------------------------------------
+              // STOP TRIP BUTTON
+              // ------------------------------------------------------------
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -150,6 +245,8 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -157,6 +254,10 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     );
   }
 }
+
+// ==========================================================================
+// SENSOR CARD
+// ==========================================================================
 
 class _SensorCard extends StatelessWidget {
   final String title;
@@ -179,6 +280,13 @@ class _SensorCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -194,7 +302,9 @@ class _SensorCard extends StatelessWidget {
               size: 30,
             ),
           ),
+
           const SizedBox(width: 15),
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,10 +313,15 @@ class _SensorCard extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     color: Color(0xFF666666),
+                    fontSize: 14,
                   ),
                 ),
+
                 const SizedBox(height: 5),
+
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
                       value,
@@ -216,10 +331,13 @@ class _SensorCard extends StatelessWidget {
                         color: Color(0xFF212121),
                       ),
                     ),
+
                     const SizedBox(width: 6),
+
                     Text(
                       unit,
                       style: const TextStyle(
+                        fontSize: 13,
                         color: Color(0xFF666666),
                       ),
                     ),
