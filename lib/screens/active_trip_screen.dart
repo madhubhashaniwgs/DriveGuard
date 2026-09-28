@@ -1,8 +1,8 @@
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../models/sensor_data.dart';
 import '../services/sensor_service.dart';
 
 class ActiveTripScreen extends StatefulWidget {
@@ -15,8 +15,7 @@ class ActiveTripScreen extends StatefulWidget {
 class _ActiveTripScreenState extends State<ActiveTripScreen> {
   final SensorService _sensorService = SensorService();
 
-  StreamSubscription<SensorData>? _accelerometerSubscription;
-  StreamSubscription<SensorData>? _gyroscopeSubscription;
+  StreamSubscription<SensorData>? _sensorDataSubscription;
 
   // Accelerometer values
   double _accX = 0;
@@ -36,38 +35,27 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   }
 
   void _startSensors() {
-    _sensorService.startSensors();
+    _sensorService.start();
 
-    // Listen to accelerometer data
-    _accelerometerSubscription =
-        _sensorService.accelerometerStream.listen((SensorData data) {
+    _sensorDataSubscription =
+        _sensorService.sensorDataStream.listen((SensorData data) {
       if (!mounted) return;
 
       setState(() {
-        _accX = data.x;
-        _accY = data.y;
-        _accZ = data.z;
-      });
-    });
+        _accX = data.accelerometerX;
+        _accY = data.accelerometerY;
+        _accZ = data.accelerometerZ;
 
-    // Listen to gyroscope data
-    _gyroscopeSubscription =
-        _sensorService.gyroscopeStream.listen((SensorData data) {
-      if (!mounted) return;
-
-      setState(() {
-        _gyroX = data.x;
-        _gyroY = data.y;
-        _gyroZ = data.z;
+        _gyroX = data.gyroscopeX;
+        _gyroY = data.gyroscopeY;
+        _gyroZ = data.gyroscopeZ;
       });
     });
   }
 
   @override
   void dispose() {
-    _accelerometerSubscription?.cancel();
-    _gyroscopeSubscription?.cancel();
-
+    _sensorDataSubscription?.cancel();
     _sensorService.dispose();
 
     super.dispose();
@@ -93,9 +81,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              // ------------------------------------------------------------
-              // TRIP STATUS
-              // ------------------------------------------------------------
+              // Trip Status
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -125,9 +111,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 25),
 
-              // ------------------------------------------------------------
-              // ACCELEROMETER SECTION
-              // ------------------------------------------------------------
+              // Accelerometer Section
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -142,7 +126,6 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 15),
 
-              // Accelerometer X
               _SensorCard(
                 title: 'X Axis',
                 value: _accX.toStringAsFixed(2),
@@ -152,7 +135,6 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 15),
 
-              // Accelerometer Y
               _SensorCard(
                 title: 'Y Axis',
                 value: _accY.toStringAsFixed(2),
@@ -162,7 +144,6 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 15),
 
-              // Accelerometer Z
               _SensorCard(
                 title: 'Z Axis',
                 value: _accZ.toStringAsFixed(2),
@@ -172,9 +153,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 30),
 
-              // ------------------------------------------------------------
-              // GYROSCOPE SECTION
-              // ------------------------------------------------------------
+              // Gyroscope Section
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -189,7 +168,6 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 15),
 
-              // Gyroscope X
               _SensorCard(
                 title: 'Gyro X',
                 value: _gyroX.toStringAsFixed(2),
@@ -199,7 +177,6 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 15),
 
-              // Gyroscope Y
               _SensorCard(
                 title: 'Gyro Y',
                 value: _gyroY.toStringAsFixed(2),
@@ -209,7 +186,6 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 15),
 
-              // Gyroscope Z
               _SensorCard(
                 title: 'Gyro Z',
                 value: _gyroZ.toStringAsFixed(2),
@@ -219,9 +195,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
               const SizedBox(height: 30),
 
-              // ------------------------------------------------------------
-              // STOP TRIP BUTTON
-              // ------------------------------------------------------------
+              // Stop Trip
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -254,10 +228,6 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     );
   }
 }
-
-// ==========================================================================
-// SENSOR CARD
-// ==========================================================================
 
 class _SensorCard extends StatelessWidget {
   final String title;
@@ -302,9 +272,7 @@ class _SensorCard extends StatelessWidget {
               size: 30,
             ),
           ),
-
           const SizedBox(width: 15),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -316,9 +284,7 @@ class _SensorCard extends StatelessWidget {
                     fontSize: 14,
                   ),
                 ),
-
                 const SizedBox(height: 5),
-
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
@@ -331,9 +297,7 @@ class _SensorCard extends StatelessWidget {
                         color: Color(0xFF212121),
                       ),
                     ),
-
                     const SizedBox(width: 6),
-
                     Text(
                       unit,
                       style: const TextStyle(
@@ -351,4 +315,3 @@ class _SensorCard extends StatelessWidget {
     );
   }
 }
-

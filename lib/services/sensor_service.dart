@@ -2,77 +2,71 @@ import 'dart:async';
 
 import 'package:sensors_plus/sensors_plus.dart';
 
-class SensorData {
-  final double x;
-  final double y;
-  final double z;
-
-  SensorData({
-    required this.x,
-    required this.y,
-    required this.z,
-  });
-}
+import '../models/sensor_data.dart';
 
 class SensorService {
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
 
-  final StreamController<SensorData> _accelerometerController =
+  double _accelerometerX = 0;
+  double _accelerometerY = 0;
+  double _accelerometerZ = 0;
+
+  double _gyroscopeX = 0;
+  double _gyroscopeY = 0;
+  double _gyroscopeZ = 0;
+
+  final StreamController<SensorData> _sensorDataController =
       StreamController<SensorData>.broadcast();
 
-  final StreamController<SensorData> _gyroscopeController =
-      StreamController<SensorData>.broadcast();
+  Stream<SensorData> get sensorDataStream => _sensorDataController.stream;
 
-  Stream<SensorData> get accelerometerStream =>
-      _accelerometerController.stream;
+  void start() {
+    _accelerometerSubscription = accelerometerEventStream().listen(
+      (event) {
+        _accelerometerX = event.x;
+        _accelerometerY = event.y;
+        _accelerometerZ = event.z;
 
-  Stream<SensorData> get gyroscopeStream => _gyroscopeController.stream;
+        _emitSensorData();
+      },
+    );
 
-  void startSensors() {
-    _startAccelerometer();
-    _startGyroscope();
+    _gyroscopeSubscription = gyroscopeEventStream().listen(
+      (event) {
+        _gyroscopeX = event.x;
+        _gyroscopeY = event.y;
+        _gyroscopeZ = event.z;
+
+        _emitSensorData();
+      },
+    );
   }
 
-  void _startAccelerometer() {
-    _accelerometerSubscription =
-        accelerometerEventStream().listen((AccelerometerEvent event) {
-      _accelerometerController.add(
-        SensorData(
-          x: event.x,
-          y: event.y,
-          z: event.z,
-        ),
-      );
-    });
+  void _emitSensorData() {
+    _sensorDataController.add(
+      SensorData(
+        timestamp: DateTime.now(),
+        accelerometerX: _accelerometerX,
+        accelerometerY: _accelerometerY,
+        accelerometerZ: _accelerometerZ,
+        gyroscopeX: _gyroscopeX,
+        gyroscopeY: _gyroscopeY,
+        gyroscopeZ: _gyroscopeZ,
+      ),
+    );
   }
 
-  void _startGyroscope() {
-    _gyroscopeSubscription =
-        gyroscopeEventStream().listen((GyroscopeEvent event) {
-      _gyroscopeController.add(
-        SensorData(
-          x: event.x,
-          y: event.y,
-          z: event.z,
-        ),
-      );
-    });
-  }
-
-  void stopSensors() {
+  void stop() {
     _accelerometerSubscription?.cancel();
-    _accelerometerSubscription = null;
-
     _gyroscopeSubscription?.cancel();
+
+    _accelerometerSubscription = null;
     _gyroscopeSubscription = null;
   }
 
   void dispose() {
-    stopSensors();
-
-    _accelerometerController.close();
-    _gyroscopeController.close();
+    stop();
+    _sensorDataController.close();
   }
 }
-
