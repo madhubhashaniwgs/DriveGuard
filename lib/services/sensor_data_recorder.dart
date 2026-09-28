@@ -1,32 +1,47 @@
+import 'package:uuid/uuid.dart';
+
 import '../models/sensor_data.dart';
+import '../models/trip_data.dart';
 
 class SensorDataRecorder {
-  final List<SensorData> _recordedData = [];
+  final Uuid _uuid = const Uuid();
 
-  bool _isRecording = false;
+  TripData? _currentTrip;
 
-  List<SensorData> get recordedData => List.unmodifiable(_recordedData);
+  TripData? get currentTrip => _currentTrip;
 
-  bool get isRecording => _isRecording;
+  bool get isRecording => _currentTrip != null;
+
+  int get dataCount => _currentTrip?.sensorDataCount ?? 0;
 
   void startRecording() {
-    _recordedData.clear();
-    _isRecording = true;
+    if (isRecording) return;
+
+    _currentTrip = TripData(
+      tripId: _uuid.v4(),
+      startTime: DateTime.now(),
+    );
   }
 
   void record(SensorData data) {
-    if (!_isRecording) return;
+    if (!isRecording) return;
 
-    _recordedData.add(data);
+    _currentTrip!.sensorData.add(data);
   }
 
-  void stopRecording() {
-    _isRecording = false;
+  TripData? stopRecording() {
+    if (!isRecording) return null;
+
+    _currentTrip!.endTime = DateTime.now();
+
+    final completedTrip = _currentTrip;
+
+    _currentTrip = null;
+
+    return completedTrip;
   }
 
   void clear() {
-    _recordedData.clear();
+    _currentTrip = null;
   }
-
-  int get dataCount => _recordedData.length;
 }

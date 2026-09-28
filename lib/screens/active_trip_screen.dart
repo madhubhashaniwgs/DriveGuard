@@ -1,7 +1,7 @@
 import 'dart:async';
-
+import '../services/sensor_metrics_service.dart';
 import 'package:flutter/material.dart';
-
+import '../services/sensor_filter.dart';
 import '../models/sensor_data.dart';
 import '../services/sensor_service.dart';
 import '../services/sensor_data_recorder.dart';
@@ -16,6 +16,8 @@ class ActiveTripScreen extends StatefulWidget {
 class _ActiveTripScreenState extends State<ActiveTripScreen> {
   final SensorService _sensorService = SensorService();
   final SensorDataRecorder _sensorDataRecorder = SensorDataRecorder();
+  final SensorFilter _sensorFilter = SensorFilter();
+  final SensorMetricsService _metricsService = SensorMetricsService();
 
   StreamSubscription<SensorData>? _sensorDataSubscription;
 
@@ -37,24 +39,35 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   }
 
   void _startSensors() {
+     _sensorFilter.reset();
     _sensorDataRecorder.startRecording();
     _sensorService.start();
-
     _sensorDataSubscription =
-        _sensorService.sensorDataStream.listen((SensorData data) {
+        _sensorService.sensorDataStream.listen((SensorData rawData) {
       if (!mounted) return;
 
-      _sensorDataRecorder.record(data);
+      // Keep the original raw sensor data.
+      _sensorDataRecorder.record(rawData);
+
+      // Create a filtered version for processing/display.
+      final filteredData = _sensorFilter.filter(rawData);
+      final metrics = _metricsService.calculate(filteredData);
 
       setState(() {
-        _accX = data.accelerometerX;
-        _accY = data.accelerometerY;
-        _accZ = data.accelerometerZ;
+        _accX = filteredData.accelerometerX;
+        _accY = filteredData.accelerometerY;
+        _accZ = filteredData.accelerometerZ;
 
-        _gyroX = data.gyroscopeX;
-        _gyroY = data.gyroscopeY;
-        _gyroZ = data.gyroscopeZ;
+        _gyroX = filteredData.gyroscopeX;
+        _gyroY = filteredData.gyroscopeY;
+        _gyroZ = filteredData.gyroscopeZ;
       });
+      debugPrint(
+      'Acceleration: '
+      '${metrics.accelerationMagnitude.toStringAsFixed(2)} m/s² | '
+      'Angular velocity: '
+      '${metrics.angularVelocityMagnitude.toStringAsFixed(2)} rad/s',
+    );
     });
   }
 
@@ -207,13 +220,18 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                 height: 55,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    _sensorDataRecorder.stopRecording();
+                  final completedTrip = _sensorDataRecorder.stopRecording();
 
-                    debugPrint(
-                      'Recorded sensor data: ${_sensorDataRecorder.dataCount}',
-                    );
+                  if (completedTrip != null) {
+                    debugPrint('Trip ID: ${completedTrip.tripId}');
+                    debugPrint('Start time: ${completedTrip.startTime}');
+                    debugPrint('End time: ${completedTrip.endTime}');
+                    debugPrint('Duration: ${completedTrip.duration}');
+                    debugPrint('Sensor records: ${completedTrip.sensorDataCount}');
+                  }
 
-                    Navigator.pop(context);
+                  Navigator.pop(context);
+                
                   },
                   icon: const Icon(Icons.stop),
                   label: const Text(
