@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/sensor_data.dart';
 import '../services/sensor_service.dart';
+import '../services/sensor_data_recorder.dart';
 
 class ActiveTripScreen extends StatefulWidget {
   const ActiveTripScreen({super.key});
@@ -14,6 +15,7 @@ class ActiveTripScreen extends StatefulWidget {
 
 class _ActiveTripScreenState extends State<ActiveTripScreen> {
   final SensorService _sensorService = SensorService();
+  final SensorDataRecorder _sensorDataRecorder = SensorDataRecorder();
 
   StreamSubscription<SensorData>? _sensorDataSubscription;
 
@@ -35,11 +37,14 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   }
 
   void _startSensors() {
+    _sensorDataRecorder.startRecording();
     _sensorService.start();
 
     _sensorDataSubscription =
         _sensorService.sensorDataStream.listen((SensorData data) {
       if (!mounted) return;
+
+      _sensorDataRecorder.record(data);
 
       setState(() {
         _accX = data.accelerometerX;
@@ -57,6 +62,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   void dispose() {
     _sensorDataSubscription?.cancel();
     _sensorService.dispose();
+    _sensorDataRecorder.stopRecording();
 
     super.dispose();
   }
@@ -201,6 +207,12 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                 height: 55,
                 child: ElevatedButton.icon(
                   onPressed: () {
+                    _sensorDataRecorder.stopRecording();
+
+                    debugPrint(
+                      'Recorded sensor data: ${_sensorDataRecorder.dataCount}',
+                    );
+
                     Navigator.pop(context);
                   },
                   icon: const Icon(Icons.stop),
