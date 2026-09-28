@@ -4,23 +4,48 @@ import '../models/sensor_data.dart';
 import '../models/sensor_metrics.dart';
 
 class SensorMetricsService {
-  SensorMetrics calculate(SensorData data) {
-    final accelerationMagnitude = sqrt(
-      pow(data.accelerometerX, 2) +
-          pow(data.accelerometerY, 2) +
-          pow(data.accelerometerZ, 2),
+  SensorMetrics calculate({
+    required SensorData totalAccelerationData,
+    required SensorData linearAccelerationData,
+  }) {
+    final accelerationMagnitude = _magnitude(
+      totalAccelerationData.accelerometerX,
+      totalAccelerationData.accelerometerY,
+      totalAccelerationData.accelerometerZ,
     );
 
-    final angularVelocityMagnitude = sqrt(
-      pow(data.gyroscopeX, 2) +
-          pow(data.gyroscopeY, 2) +
-          pow(data.gyroscopeZ, 2),
+    final linearAccelerationMagnitude = _magnitude(
+      linearAccelerationData.accelerometerX,
+      linearAccelerationData.accelerometerY,
+      linearAccelerationData.accelerometerZ,
+    );
+
+    final angularVelocityMagnitude = _magnitude(
+      linearAccelerationData.gyroscopeX,
+      linearAccelerationData.gyroscopeY,
+      linearAccelerationData.gyroscopeZ,
     );
 
     return SensorMetrics(
-      sensorData: data,
+      sensorData: linearAccelerationData,
       accelerationMagnitude: accelerationMagnitude,
+      linearAccelerationX: linearAccelerationData.accelerometerX,
+      linearAccelerationY: linearAccelerationData.accelerometerY,
+      linearAccelerationZ: linearAccelerationData.accelerometerZ,
+      linearAccelerationMagnitude: linearAccelerationMagnitude,
       angularVelocityMagnitude: angularVelocityMagnitude,
+    );
+  }
+
+  double _magnitude(
+    double x,
+    double y,
+    double z,
+  ) {
+    return sqrt(
+      x * x +
+          y * y +
+          z * z,
     );
   }
 }

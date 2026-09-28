@@ -1,10 +1,13 @@
 import 'dart:async';
-import '../services/sensor_metrics_service.dart';
+
 import 'package:flutter/material.dart';
-import '../services/sensor_filter.dart';
+
 import '../models/sensor_data.dart';
-import '../services/sensor_service.dart';
+import '../services/gravity_estimator.dart';
 import '../services/sensor_data_recorder.dart';
+import '../services/sensor_filter.dart';
+import '../services/sensor_metrics_service.dart';
+import '../services/sensor_service.dart';
 
 class ActiveTripScreen extends StatefulWidget {
   const ActiveTripScreen({super.key});
@@ -17,6 +20,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   final SensorService _sensorService = SensorService();
   final SensorDataRecorder _sensorDataRecorder = SensorDataRecorder();
   final SensorFilter _sensorFilter = SensorFilter();
+  final GravityEstimator _gravityEstimator = GravityEstimator();
   final SensorMetricsService _metricsService = SensorMetricsService();
 
   StreamSubscription<SensorData>? _sensorDataSubscription;
@@ -31,6 +35,11 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   double _gyroY = 0;
   double _gyroZ = 0;
 
+  // Calculated metrics
+  double _totalAcceleration = 0;
+  double _linearAcceleration = 0;
+  double _angularVelocity = 0;
+
   @override
   void initState() {
     super.initState();
@@ -39,20 +48,33 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   }
 
   void _startSensors() {
-     _sensorFilter.reset();
+    _sensorFilter.reset();
+    _gravityEstimator.reset();
     _sensorDataRecorder.startRecording();
+
     _sensorService.start();
+
     _sensorDataSubscription =
         _sensorService.sensorDataStream.listen((SensorData rawData) {
       if (!mounted) return;
 
-      // Keep the original raw sensor data.
+      // 1. Store original raw sensor data
       _sensorDataRecorder.record(rawData);
 
-      // Create a filtered version for processing/display.
+      // 2. Smooth noisy sensor values
       final filteredData = _sensorFilter.filter(rawData);
-      final metrics = _metricsService.calculate(filteredData);
 
+      // 3. Remove gravity
+      final linearAccelerationData =
+          _gravityEstimator.removeGravity(filteredData);
+
+      // 4. Calculate metrics
+      final metrics = _metricsService.calculate(
+        totalAccelerationData: filteredData,
+        linearAccelerationData: linearAccelerationData,
+      );
+
+      // 5. Update UI
       setState(() {
         _accX = filteredData.accelerometerX;
         _accY = filteredData.accelerometerY;
@@ -61,14 +83,44 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
         _gyroX = filteredData.gyroscopeX;
         _gyroY = filteredData.gyroscopeY;
         _gyroZ = filteredData.gyroscopeZ;
+
+        _totalAcceleration = metrics.accelerationMagnitude;
+        _linearAcceleration = metrics.linearAccelerationMagnitude;
+        _angularVelocity = metrics.angularVelocityMagnitude;
       });
+
+      // 6. Debug output
       debugPrint(
-      'Acceleration: '
-      '${metrics.accelerationMagnitude.toStringAsFixed(2)} m/s² | '
-      'Angular velocity: '
-      '${metrics.angularVelocityMagnitude.toStringAsFixed(2)} rad/s',
-    );
+        'Total acceleration: '
+        '${metrics.accelerationMagnitude.toStringAsFixed(2)} m/s² | '
+        'Linear acceleration: '
+        '${metrics.linearAccelerationMagnitude.toStringAsFixed(2)} m/s² | '
+        'Angular velocity: '
+        '${metrics.angularVelocityMagnitude.toStringAsFixed(2)} rad/s',
+      );
     });
+  }
+
+  void _stopTrip() {
+    // Stop receiving sensor data
+    _sensorDataSubscription?.cancel();
+    _sensorDataSubscription = null;
+
+    // Stop sensor streams
+    _sensorService.stop();
+
+    // Complete current trip
+    final completedTrip = _sensorDataRecorder.stopRecording();
+
+    if (completedTrip != null) {
+      debugPrint('Trip ID: ${completedTrip.tripId}');
+      debugPrint('Start time: ${completedTrip.startTime}');
+      debugPrint('End time: ${completedTrip.endTime}');
+      debugPrint('Duration: ${completedTrip.duration}');
+      debugPrint('Sensor records: ${completedTrip.sensorDataCount}');
+    }
+
+    Navigator.pop(context);
   }
 
   @override
@@ -129,6 +181,48 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
               ),
 
               const SizedBox(height: 25),
+
+              // Metrics Section
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Driving Metrics',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF212121),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 15),
+
+              _SensorCard(
+                title: 'Total Acceleration',
+                value: _totalAcceleration.toStringAsFixed(2),
+                unit: 'm/s²',
+                icon: Icons.speed,
+              ),
+
+              const SizedBox(height: 15),
+
+              _SensorCard(
+                title: 'Linear Acceleration',
+                value: _linearAcceleration.toStringAsFixed(2),
+                unit: 'm/s²',
+                icon: Icons.trending_up,
+              ),
+
+              const SizedBox(height: 15),
+
+              _SensorCard(
+                title: 'Angular Velocity',
+                value: _angularVelocity.toStringAsFixed(2),
+                unit: 'rad/s',
+                icon: Icons.screen_rotation,
+              ),
+
+              const SizedBox(height: 30),
 
               // Accelerometer Section
               const Align(
@@ -219,20 +313,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                  final completedTrip = _sensorDataRecorder.stopRecording();
-
-                  if (completedTrip != null) {
-                    debugPrint('Trip ID: ${completedTrip.tripId}');
-                    debugPrint('Start time: ${completedTrip.startTime}');
-                    debugPrint('End time: ${completedTrip.endTime}');
-                    debugPrint('Duration: ${completedTrip.duration}');
-                    debugPrint('Sensor records: ${completedTrip.sensorDataCount}');
-                  }
-
-                  Navigator.pop(context);
-                
-                  },
+                  onPressed: _stopTrip,
                   icon: const Icon(Icons.stop),
                   label: const Text(
                     'STOP TRIP',
