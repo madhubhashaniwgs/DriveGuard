@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 
 from database import client
+from routes.trips import router as trips_router
 
 app = FastAPI(title="DriveGuard API")
+
+app.include_router(trips_router)
 
 
 @app.get("/")
