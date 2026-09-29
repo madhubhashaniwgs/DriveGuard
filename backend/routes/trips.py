@@ -31,3 +31,18 @@ def get_trips():
     return {
         "trips": trips
     }
+
+
+@router.get("/{trip_id}")
+def get_trip(trip_id: str):
+    trip = db.trips.find_one({"trip_id": trip_id})
+
+    if trip is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Trip not found",
+        )
+
+    trip["_id"] = str(trip["_id"])
+
+    return trip
