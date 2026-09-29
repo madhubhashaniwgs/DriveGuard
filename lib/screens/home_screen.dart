@@ -1,5 +1,6 @@
 import 'active_trip_screen.dart';
 import 'package:flutter/material.dart';
+import 'trip_history_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -155,6 +156,27 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              SizedBox(
+  width: double.infinity,
+  height: 55,
+  child: OutlinedButton.icon(
+    onPressed: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const TripHistoryScreen(),
+        ),
+      );
+    },
+    icon: const Icon(Icons.history_rounded),
+    label: const Text(
+      'TRIP HISTORY',
+      style: TextStyle(
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ),
+),
             ],
           ),
         ),
