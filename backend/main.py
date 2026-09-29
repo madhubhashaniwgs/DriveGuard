@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 
+from database import client
+
 app = FastAPI(title="DriveGuard API")
 
 
@@ -12,6 +14,17 @@ def root():
 
 @app.get("/health")
 def health_check():
-    return {
-        "status": "healthy"
-    }
+    try:
+        client.admin.command("ping")
+
+        return {
+            "status": "healthy",
+            "database": "connected"
+        }
+
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e)
+        }
