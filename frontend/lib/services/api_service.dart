@@ -162,4 +162,78 @@ class ApiService {
     }
   }
 
+  // Fetch a single trip from the backend.
+    static Future<Map<String, dynamic>> getTripDetails(
+    String tripId,
+    ) async {
+    try {
+        final response = await http
+            .get(
+            Uri.parse('${ApiConfig.baseUrl}/trips/$tripId'),
+            )
+            .timeout(const Duration(seconds: 15));
+
+        final data = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+        return {
+            'success': true,
+            'data': data,
+        };
+        }
+
+        return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to fetch trip details',
+        };
+    } catch (e) {
+        return {
+        'success': false,
+        'message': e.toString(),
+        };
+    }
+    }
+
+    // Fetch driving events for a specific trip.
+    static Future<Map<String, dynamic>> getDrivingEvents(
+    String tripId,
+    ) async {
+    try {
+        final response = await http
+            .get(
+            Uri.parse('${ApiConfig.baseUrl}/trips/$tripId/events'),
+            )
+            .timeout(const Duration(seconds: 15));
+
+        final data = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+        final List<dynamic> eventsJson = data['events'];
+
+        final events = eventsJson
+        .map(
+        (event) => DrivingEventData.fromJson(
+            event as Map<String, dynamic>,
+        ),
+        )
+        .toList();
+
+        return {
+            'success': true,
+            'data': events,
+        };
+        }
+
+        return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to fetch driving events',
+        };
+    } catch (e) {
+        return {
+        'success': false,
+        'message': e.toString(),
+        };
+    }
+    }
+
 }

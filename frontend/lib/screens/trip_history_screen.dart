@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../models/trip_history_data.dart';
 import '../services/api_service.dart';
+import 'trip_details_screen.dart';
 
 class TripHistoryScreen extends StatefulWidget {
   const TripHistoryScreen({super.key});
@@ -130,6 +131,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   }
 }
 
+
 class _TripHistoryCard extends StatelessWidget {
   final TripHistoryData trip;
   final String date;
@@ -158,88 +160,106 @@ class _TripHistoryCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(
-              color: eventCount == 0
-                  ? const Color(0xFFE8F5E9)
-                  : const Color(0xFFFFF3E0),
-              borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TripDetailsScreen(
+                tripId: trip.tripId,
+              ),
             ),
-            child: Icon(
-              Icons.directions_car_rounded,
-              color: eventCount == 0
-                  ? const Color(0xFF4CAF50)
-                  : const Color(0xFFFF9800),
-              size: 28,
+          );
+        },
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: eventCount == 0
+                    ? const Color(0xFFE8F5E9)
+                    : const Color(0xFFFFF3E0),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                Icons.directions_car_rounded,
+                color: eventCount == 0
+                    ? const Color(0xFF4CAF50)
+                    : const Color(0xFFFF9800),
+                size: 28,
+              ),
             ),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  date,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF212121),
+            const SizedBox(width: 15),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    date,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF212121),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 7),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.timer_outlined,
-                      size: 16,
-                      color: Color(0xFF777777),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      duration,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF666666),
+                  const SizedBox(height: 7),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.timer_outlined,
+                        size: 16,
+                        color: Color(0xFF777777),
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    const Icon(
-                      Icons.warning_amber_outlined,
-                      size: 16,
-                      color: Color(0xFF777777),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '$eventCount events',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF666666),
+                      const SizedBox(width: 5),
+                      Text(
+                        duration,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF666666),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  trip.overallStatus,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: eventCount == 0
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFFE68A00),
-                    fontWeight: FontWeight.w600,
+                      const SizedBox(width: 14),
+                      const Icon(
+                        Icons.warning_amber_outlined,
+                        size: 16,
+                        color: Color(0xFF777777),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '$eventCount events',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF666666),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    trip.overallStatus,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: eventCount == 0
+                          ? const Color(0xFF4CAF50)
+                          : const Color(0xFFE68A00),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Color(0xFF999999),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
+
 
 class _ErrorHistory extends StatelessWidget {
   final String message;
