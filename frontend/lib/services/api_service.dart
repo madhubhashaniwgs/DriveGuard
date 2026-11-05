@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import '../models/trip_data.dart';
 import '../models/driving_event_data.dart';
+import '../models/trip_history_data.dart';
 
 class ApiService {
   // Check backend and database connection.
@@ -119,4 +120,46 @@ class ApiService {
       };
     }
   }
+
+  
+  // Fetch all trips from the backend.
+  static Future<Map<String, dynamic>> getTrips() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/trips/'),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+    final List<dynamic> tripsJson = data['trips'];
+
+    final trips = tripsJson
+        .map(
+            (trip) => TripHistoryData.fromJson(
+            trip as Map<String, dynamic>,
+            ),
+        )
+        .toList();
+
+    return {
+        'success': true,
+        'data': trips,
+    };
+    }
+
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to fetch trips',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': e.toString(),
+      };
+    }
+  }
+
 }
