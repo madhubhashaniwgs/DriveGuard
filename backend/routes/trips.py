@@ -55,6 +55,7 @@ def create_driving_event(
     trip_id: str,
     event: DrivingEventCreate,
 ):
+    
     trip = db.trips.find_one({"trip_id": trip_id})
 
     if trip is None:
@@ -77,4 +78,28 @@ def create_driving_event(
         "message": "Driving event created successfully",
         "event_id": str(result.inserted_id),
         "trip_id": trip_id,
+    }
+
+    
+@router.get("/{trip_id}/events")
+def get_driving_events(trip_id: str):
+
+    trip = db.trips.find_one({"trip_id": trip_id})
+
+    if trip is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Trip not found",
+        )
+
+    events = list(
+        db.driving_events.find({"trip_id": trip_id})
+    )
+
+    for event in events:
+        event["_id"] = str(event["_id"])
+
+    return {
+        "trip_id": trip_id,
+        "events": events,
     }

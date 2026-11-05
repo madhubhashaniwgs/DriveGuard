@@ -1,19 +1,55 @@
+
 import 'package:flutter/material.dart';
 
-import '../models/trip_data.dart';
-import 'trip_summary_screen.dart';
+import '../models/trip_history_data.dart';
+import '../services/api_service.dart';
+import 'trip_details_screen.dart';
 
-class TripHistoryScreen extends StatelessWidget {
-  final List<TripData> trips;
+class TripHistoryScreen extends StatefulWidget {
+  const TripHistoryScreen({super.key});
 
-  const TripHistoryScreen({
-    super.key,
-    this.trips = const [],
-  });
+  @override
+  State<TripHistoryScreen> createState() => _TripHistoryScreenState();
+}
 
-  String _formatDuration(Duration? duration) {
-    if (duration == null) return '--:--';
+class _TripHistoryScreenState extends State<TripHistoryScreen> {
+ 
 
+  List<TripHistoryData> _trips = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTrips();
+  }
+
+  Future<void> _loadTrips() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await ApiService.getTrips();
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      setState(() {
+        _trips = result['data'] as List<TripHistoryData>;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _errorMessage =
+            result['message'] ?? 'Failed to load trip history.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatDuration(Duration duration) {
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     final seconds = duration.inSeconds.remainder(60);
@@ -40,83 +76,102 @@ class TripHistoryScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Trip History',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF212121),
         elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: _isLoading ? null : _loadTrips,
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh',
+          ),
+        ],
       ),
       body: Container(
         color: const Color(0xFFFFF8E1),
         child: SafeArea(
-          child: trips.isEmpty
-              ? _EmptyHistory()
-              : ListView.separated(
-                  padding: const EdgeInsets.all(20),
-                  itemCount: trips.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(height: 14),
-                  itemBuilder: (context, index) {
-                    final trip = trips[index];
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFFFF9800),
+                  ),
+                )
+              : _errorMessage != null
+                  ? _ErrorHistory(
+                      message: _errorMessage!,
+                      onRetry: _loadTrips,
+                    )
+                  : _trips.isEmpty
+                      ? const _EmptyHistory()
+                      : RefreshIndicator(
+                          color: const Color(0xFFFF9800),
+                          onRefresh: _loadTrips,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.all(20),
+                            itemCount: _trips.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 14),
+                            itemBuilder: (context, index) {
+                              final trip = _trips[index];
 
-                    return _TripHistoryCard(
-                      trip: trip,
-                      date: _formatDate(trip.startTime),
-                      duration: _formatDuration(trip.duration),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TripSummaryScreen(
-                              trip: trip,
-                            ),
+                              return _TripHistoryCard(
+                                trip: trip,
+                                date: _formatDate(trip.startTime),
+                                duration:
+                                    _formatDuration(trip.duration),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    );
-                  },
-                ),
+                        ),
         ),
       ),
     );
   }
 }
 
+
 class _TripHistoryCard extends StatelessWidget {
-  final TripData trip;
+  final TripHistoryData trip;
   final String date;
   final String duration;
-  final VoidCallback onTap;
 
   const _TripHistoryCard({
     required this.trip,
     required this.date,
     required this.duration,
-    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final eventCount = trip.drivingEventCount;
+    final eventCount = trip.eventCount;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 9,
-              offset: const Offset(0, 3),
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 9,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TripDetailsScreen(
+                tripId: trip.tripId,
+              ),
             ),
-          ],
-        ),
+          );
+        },
         child: Row(
           children: [
             Container(
@@ -180,6 +235,17 @@ class _TripHistoryCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    trip.overallStatus,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: eventCount == 0
+                          ? const Color(0xFF4CAF50)
+                          : const Color(0xFFE68A00),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -194,7 +260,65 @@ class _TripHistoryCard extends StatelessWidget {
   }
 }
 
+
+class _ErrorHistory extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _ErrorHistory({
+    required this.message,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.cloud_off_rounded,
+              size: 55,
+              color: Color(0xFFFF9800),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Unable to Load Trips',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Color(0xFF777777),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF9800),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyHistory extends StatelessWidget {
+  const _EmptyHistory();
+
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -205,8 +329,8 @@ class _EmptyHistory extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF3E0),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFF3E0),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
