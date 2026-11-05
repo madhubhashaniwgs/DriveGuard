@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'trip_summary_screen.dart';
+import '../services/api_service.dart';
 import '../models/driving_event_data.dart';
 import '../models/sensor_data.dart';
 import '../services/driving_event_detector.dart';
@@ -151,41 +152,74 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     );
   }
 
-  void _stopTrip() {
-    _timer?.cancel();
-    _timer = null;
+  Future<void> _stopTrip() async {
+  // Prevent stopping and uploading the same trip multiple times.
+  if (!_isTripActive) return;
 
-    _sensorDataSubscription?.cancel();
-    _sensorDataSubscription = null;
+  _timer?.cancel();
+  _timer = null;
 
-    _sensorService.stop();
+  _sensorDataSubscription?.cancel();
+  _sensorDataSubscription = null;
 
-    _isTripActive = false;
+  _sensorService.stop();
 
-    final completedTrip = _sensorDataRecorder.stopRecording();
+  _isTripActive = false;
 
-    if (completedTrip != null) {
-      debugPrint('Trip ID: ${completedTrip.tripId}');
-      debugPrint('Start time: ${completedTrip.startTime}');
-      debugPrint('End time: ${completedTrip.endTime}');
-      debugPrint('Duration: ${completedTrip.duration}');
-      debugPrint('Sensor records: ${completedTrip.sensorDataCount}');
-      debugPrint(
-        'Driving events: ${completedTrip.drivingEvents.length}',
+  // Stop recording and retrieve the completed trip.
+  final completedTrip = _sensorDataRecorder.stopRecording();
+
+  if (completedTrip != null) {
+    debugPrint('Trip ID: ${completedTrip.tripId}');
+    debugPrint('Start time: ${completedTrip.startTime}');
+    debugPrint('End time: ${completedTrip.endTime}');
+    debugPrint('Duration: ${completedTrip.duration}');
+    debugPrint('Sensor records: ${completedTrip.sensorDataCount}');
+    debugPrint(
+      'Driving events: ${completedTrip.drivingEvents.length}',
+    );
+
+    // Upload completed trip to the backend.
+    debugPrint('Uploading trip to backend...');
+
+    final uploadResult = await ApiService.createTrip(completedTrip);
+
+    if (!mounted) return;
+
+    if (uploadResult['success'] == true) {
+      debugPrint('Trip uploaded successfully!');
+      debugPrint('Backend response: ${uploadResult['data']}');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Trip uploaded successfully!'),
+          backgroundColor: Colors.green,
+        ),
       );
-    }
+    } else {
+      debugPrint('Trip upload failed: ${uploadResult['message']}');
 
-    if (mounted && completedTrip != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => TripSummaryScreen(
-            trip: completedTrip,
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Trip upload failed: ${uploadResult['message']}',
           ),
+          backgroundColor: Colors.red,
         ),
       );
     }
+
+    // Navigate to Trip Summary regardless of upload result.
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TripSummaryScreen(
+          trip: completedTrip,
+        ),
+      ),
+    );
   }
+}
 
   String _formatDuration(Duration duration) {
     final hours = duration.inHours;
