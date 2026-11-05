@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import '../models/driving_event.dart';
 import '../models/driving_event_data.dart';
 import '../models/trip_data.dart';
+import '../models/trip_history_data.dart';
 
 class TripSummaryScreen extends StatelessWidget {
   final TripData trip;
+  final TripHistoryData? historyData;
 
   const TripSummaryScreen({
     super.key,
     required this.trip,
+    this.historyData,
   });
 
   String _formatDuration(Duration? duration) {
@@ -75,6 +78,15 @@ class TripSummaryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final events = trip.drivingEvents;
+
+    final duration = historyData?.duration ?? trip.duration;
+
+    final eventCount = historyData?.eventCount ?? events.length;
+
+    final overallStatus = historyData?.overallStatus ??
+        (events.isEmpty ? 'Smooth Driving' : 'Driving Events Detected');
+
+    final isSmoothDriving = overallStatus == 'Smooth Driving';
 
     return Scaffold(
       appBar: AppBar(
@@ -157,7 +169,7 @@ class TripSummaryScreen extends StatelessWidget {
                       child: _StatCard(
                         icon: Icons.timer_rounded,
                         title: 'Duration',
-                        value: _formatDuration(trip.duration),
+                        value: _formatDuration(duration),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -165,7 +177,7 @@ class TripSummaryScreen extends StatelessWidget {
                       child: _StatCard(
                         icon: Icons.warning_amber_rounded,
                         title: 'Events',
-                        value: events.length.toString(),
+                        value: eventCount.toString(),
                       ),
                     ),
                   ],
@@ -191,19 +203,17 @@ class TripSummaryScreen extends StatelessWidget {
                   child: Column(
                     children: [
                       Icon(
-                        events.isEmpty
-                            ? Icons.check_circle_rounded
-                            : Icons.warning_rounded,
+                        isSmoothDriving
+                          ? Icons.check_circle_rounded
+                          : Icons.warning_rounded,
                         size: 42,
-                        color: events.isEmpty
-                            ? const Color(0xFF4CAF50)
-                            : const Color(0xFFFF9800),
+                        color: isSmoothDriving
+                          ? const Color(0xFF4CAF50)
+                          : const Color(0xFFFF9800),
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        events.isEmpty
-                            ? 'Smooth Driving'
-                            : 'Driving Events Detected',
+                        overallStatus,
                         style: TextStyle(
                           fontSize: 21,
                           fontWeight: FontWeight.bold,
@@ -214,9 +224,9 @@ class TripSummaryScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        events.isEmpty
-                            ? 'No unusual driving events were detected.'
-                            : '${events.length} unusual driving event(s) were detected.',
+                        eventCount == 0
+                        ? 'No unusual driving events were detected.'
+                        : '$eventCount unusual driving event(s) were detected.',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: 13,
