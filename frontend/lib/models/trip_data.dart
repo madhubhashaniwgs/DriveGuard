@@ -1,3 +1,4 @@
+
 import 'driving_event_data.dart';
 import 'sensor_data.dart';
 
@@ -30,4 +31,22 @@ class TripData {
   int get sensorDataCount => sensorData.length;
 
   int get drivingEventCount => drivingEvents.length;
+
+  // Convert completed trip into JSON for the backend.
+  Map<String, dynamic> toJson() {
+    if (endTime == null) {
+      throw StateError('Cannot upload an incomplete trip.');
+    }
+
+    return {
+      'trip_id': tripId,
+      'start_time': startTime.toIso8601String(),
+      'end_time': endTime!.toIso8601String(),
+      'duration_seconds': duration!.inSeconds,
+      'overall_status': drivingEvents.isEmpty
+          ? 'Smooth Driving'
+          : 'Driving Events Detected',
+      'event_count': drivingEventCount,
+    };
+  }
 }
