@@ -13,6 +13,7 @@ import '../services/sensor_filter.dart';
 import '../services/sensor_metrics_service.dart';
 import '../services/sensor_service.dart';
 
+
 class ActiveTripScreen extends StatefulWidget {
   const ActiveTripScreen({super.key});
 
@@ -153,7 +154,6 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   }
 
   Future<void> _stopTrip() async {
-  // Prevent stopping and uploading the same trip multiple times.
   if (!_isTripActive) return;
 
   _timer?.cancel();
@@ -166,59 +166,95 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
   _isTripActive = false;
 
-  // Stop recording and retrieve the completed trip.
   final completedTrip = _sensorDataRecorder.stopRecording();
 
-  if (completedTrip != null) {
-    debugPrint('Trip ID: ${completedTrip.tripId}');
-    debugPrint('Start time: ${completedTrip.startTime}');
-    debugPrint('End time: ${completedTrip.endTime}');
-    debugPrint('Duration: ${completedTrip.duration}');
-    debugPrint('Sensor records: ${completedTrip.sensorDataCount}');
-    debugPrint(
-      'Driving events: ${completedTrip.drivingEvents.length}',
-    );
+  if (completedTrip == null) return;
 
-    // Upload completed trip to the backend.
-    debugPrint('Uploading trip to backend...');
+  debugPrint('Trip ID: ${completedTrip.tripId}');
+  debugPrint('Driving events: ${completedTrip.drivingEvents.length}');
 
-    final uploadResult = await ApiService.createTrip(completedTrip);
+  // Step 1: Upload the completed trip.
+  debugPrint('Uploading trip to backend...');
 
-    if (!mounted) return;
+  final tripResult = await ApiService.createTrip(completedTrip);
 
-    if (uploadResult['success'] == true) {
-      debugPrint('Trip uploaded successfully!');
-      debugPrint('Backend response: ${uploadResult['data']}');
+  if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Trip uploaded successfully!'),
-          backgroundColor: Colors.green,
-        ),
+  int successfulUploads = 0;
+  int failedUploads = 0;
+
+  if (tripResult['success'] == true) {
+    debugPrint('Trip uploaded successfully!');
+
+    // Step 2: Upload driving events one by one.
+    for (final event in completedTrip.drivingEvents) {
+      debugPrint('Uploading event: ${event.type.name}');
+
+      final eventResult = await ApiService.uploadDrivingEvent(
+        completedTrip.tripId,
+        event,
       );
-    } else {
-      debugPrint('Trip upload failed: ${uploadResult['message']}');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Trip upload failed: ${uploadResult['message']}',
-          ),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (eventResult['success'] == true) {
+        successfulUploads++;
+
+        debugPrint(
+          'Event uploaded: ${event.type.name}',
+        );
+      } else {
+        failedUploads++;
+
+        debugPrint(
+          'Event upload failed: ${eventResult['message']}',
+        );
+      }
     }
 
-    // Navigate to Trip Summary regardless of upload result.
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => TripSummaryScreen(
-          trip: completedTrip,
-        ),
-      ),
+    debugPrint(
+      'Event uploads completed. '
+      'Success: $successfulUploads, Failed: $failedUploads',
+    );
+  } else {
+    debugPrint(
+      'Trip upload failed: ${tripResult['message']}',
     );
   }
+
+  if (!mounted) return;
+
+  // Step 3: Show upload result.
+  String message;
+
+  if (tripResult['success'] != true) {
+    message = 'Trip upload failed: ${tripResult['message']}';
+  } else if (failedUploads > 0) {
+    message = 'Trip uploaded. '
+        '$successfulUploads events uploaded, '
+        '$failedUploads failed.';
+  } else {
+    message = 'Trip and $successfulUploads driving events uploaded!';
+  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: failedUploads > 0 ||
+              tripResult['success'] != true
+          ? Colors.red
+          : Colors.green,
+      duration: const Duration(seconds: 4),
+    ),
+  );
+
+  // Step 4: Navigate to Trip Summary.
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => TripSummaryScreen(
+        trip: completedTrip,
+      ),
+    ),
+  );
 }
 
   String _formatDuration(Duration duration) {
