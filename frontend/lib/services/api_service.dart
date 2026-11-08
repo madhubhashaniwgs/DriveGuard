@@ -7,6 +7,7 @@ import '../config/api_config.dart';
 import '../models/trip_data.dart';
 import '../models/driving_event_data.dart';
 import '../models/trip_history_data.dart';
+import '../models/trip_analytics_data.dart';
 
 class ApiService {
   // Check backend and database connection.
@@ -235,5 +236,41 @@ class ApiService {
         };
     }
     }
+
+    
+  // Fetch trip analytics from the backend.
+  static Future<Map<String, dynamic>> getTripAnalytics() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/trips/analytics/'),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        final analytics = TripAnalyticsData.fromJson(
+          data as Map<String, dynamic>,
+        );
+
+        return {
+          'success': true,
+          'data': analytics,
+        };
+      }
+
+      return {
+        'success': false,
+        'message': data['detail'] ?? 'Failed to fetch trip analytics',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': e.toString(),
+      };
+    }
+  }
+
 
 }

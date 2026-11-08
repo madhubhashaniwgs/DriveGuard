@@ -11,12 +11,18 @@ class TripData {
   final List<SensorData> sensorData;
   final List<DrivingEventData> drivingEvents;
 
+  // GPS trip metrics
+  double distanceMeters;
+  double maxSpeedKmh;
+
   TripData({
     required this.tripId,
     required this.startTime,
     this.endTime,
     List<SensorData>? sensorData,
     List<DrivingEventData>? drivingEvents,
+    this.distanceMeters = 0.0,
+    this.maxSpeedKmh = 0.0,
   })  : sensorData = sensorData ?? [],
         drivingEvents = drivingEvents ?? [];
 
@@ -32,6 +38,18 @@ class TripData {
 
   int get drivingEventCount => drivingEvents.length;
 
+  double get distanceKm => distanceMeters / 1000;
+
+  double get averageSpeedKmh {
+    final tripDuration = duration;
+
+    if (tripDuration == null || tripDuration.inSeconds <= 0) {
+      return 0.0;
+    }
+
+    return distanceKm / (tripDuration.inSeconds / 3600);
+  }
+
   // Convert completed trip into JSON for the backend.
   Map<String, dynamic> toJson() {
     if (endTime == null) {
@@ -43,6 +61,9 @@ class TripData {
       'start_time': startTime.toIso8601String(),
       'end_time': endTime!.toIso8601String(),
       'duration_seconds': duration!.inSeconds,
+      'distance_km': distanceKm,
+      'average_speed_kmh': averageSpeedKmh,
+      'max_speed_kmh': maxSpeedKmh,
       'overall_status': drivingEvents.isEmpty
           ? 'Smooth Driving'
           : 'Driving Events Detected',

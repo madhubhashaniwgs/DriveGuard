@@ -34,6 +34,92 @@ def get_trips():
         "trips": trips
     }
 
+@router.get("/analytics/")
+def get_trip_analytics():
+    trips = list(db.trips.find())
+    events = list(db.driving_events.find())
+
+    total_trips = len(trips)
+
+    # Total driving duration (all trips)
+    total_duration = sum(
+        trip.get("duration_seconds", 0)
+        for trip in trips
+    )
+
+    # Trips that have distance metrics
+    trips_with_distance = [
+        trip for trip in trips
+        if "distance_km" in trip
+    ]
+
+    # Total distance travelled
+    total_distance = sum(
+        float(trip.get("distance_km", 0) or 0)
+        for trip in trips_with_distance
+    )
+
+    # Duration of trips with distance data
+    distance_duration = sum(
+        trip.get("duration_seconds", 0)
+        for trip in trips_with_distance
+    )
+
+    # Average speed based on available GPS data
+    average_speed = (
+        total_distance / (distance_duration / 3600)
+        if distance_duration > 0
+        else 0.0
+    )
+
+    # Highest speed recorded across all trips
+    max_speed = max(
+        (
+            float(trip.get("max_speed_kmh", 0) or 0)
+            for trip in trips
+        ),
+        default=0.0,
+    )
+
+    smooth_trips = sum(
+        1
+        for trip in trips
+        if trip.get("overall_status") == "Smooth Driving"
+    )
+
+    event_breakdown = {
+        "suddenAcceleration": 0,
+        "suddenBraking": 0,
+        "harshTurn": 0,
+    }
+
+    for event in events:
+        event_type = event.get("type")
+
+        if event_type in event_breakdown:
+            event_breakdown[event_type] += 1
+
+    recent_trips = sorted(
+        trips,
+        key=lambda trip: trip.get("start_time", ""),
+        reverse=True,
+    )[:5]
+
+    for trip in recent_trips:
+        trip["_id"] = str(trip["_id"])
+
+    return {
+        "total_trips": total_trips,
+        "total_driving_time_seconds": total_duration,
+        "total_distance_km": round(total_distance, 2),
+        "average_speed_kmh": round(average_speed, 1),
+        "max_speed_kmh": round(max_speed, 1),
+        "total_events": len(events),
+        "smooth_trips": smooth_trips,
+        "trips_with_events": total_trips - smooth_trips,
+        "event_breakdown": event_breakdown,
+        "recent_trips": recent_trips,
+    }
 
 @router.get("/{trip_id}")
 def get_trip(trip_id: str):

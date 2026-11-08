@@ -42,10 +42,16 @@ class SensorDataRecorder {
     _currentTrip!.drivingEvents.add(event);
   }
 
-  TripData? stopRecording() {
+
+  TripData? stopRecording({
+    double distanceMeters = 0.0,
+    double maxSpeedKmh = 0.0,
+  }) {
     if (!isRecording) return null;
 
     _currentTrip!.endTime = DateTime.now();
+    _currentTrip!.distanceMeters = distanceMeters;
+    _currentTrip!.maxSpeedKmh = maxSpeedKmh;
 
     final completedTrip = _currentTrip;
 
@@ -53,6 +59,7 @@ class SensorDataRecorder {
 
     return completedTrip;
   }
+
 
   void clear() {
     _currentTrip = null;
