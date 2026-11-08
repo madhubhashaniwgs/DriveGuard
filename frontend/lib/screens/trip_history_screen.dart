@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/trip_history_data.dart';
 import '../services/api_service.dart';
 import 'trip_details_screen.dart';
+import '../services/trip_data_refresh_service.dart';
 
 class TripHistoryScreen extends StatefulWidget {
   const TripHistoryScreen({super.key});
@@ -22,6 +23,15 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   @override
   void initState() {
     super.initState();
+
+    TripDataRefreshService.refreshNotifier.addListener(
+      _onTripDataChanged,
+    );
+
+    _loadTrips();
+  }
+
+  void _onTripDataChanged() {
     _loadTrips();
   }
 
@@ -68,6 +78,15 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     return '${dateTime.day.toString().padLeft(2, '0')}/'
         '${dateTime.month.toString().padLeft(2, '0')}/'
         '${dateTime.year}';
+  }
+
+  @override
+  void dispose() {
+    TripDataRefreshService.refreshNotifier.removeListener(
+      _onTripDataChanged,
+    );
+
+    super.dispose();
   }
 
   @override
