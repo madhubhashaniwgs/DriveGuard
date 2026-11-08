@@ -1,5 +1,6 @@
+
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'screens/landing_screen.dart';
 
 void main() {
   runApp(const DriveGuardApp());
@@ -13,16 +14,13 @@ class DriveGuardApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'DriveGuard',
-
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFFFF9800),
         ),
         useMaterial3: true,
       ),
-
-      home: const HomeScreen(),
+      home: const LandingScreen(),
     );
   }
 }
-
