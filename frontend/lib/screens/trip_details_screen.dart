@@ -73,6 +73,7 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
       final events =
           eventsResult['data'] as List<DrivingEventData>;
 
+
       final trip = TripData(
         tripId: tripJson['trip_id'] as String,
         startTime: DateTime.parse(
@@ -82,7 +83,12 @@ class _TripDetailsScreenState extends State<TripDetailsScreen> {
           tripJson['end_time'] as String,
         ),
         drivingEvents: events,
+        distanceMeters:
+            (tripJson['distance_km'] as num? ?? 0).toDouble() * 1000,
+        maxSpeedKmh:
+            (tripJson['max_speed_kmh'] as num? ?? 0).toDouble(),
       );
+
 
      setState(() {
         _trip = trip;

@@ -183,6 +183,47 @@ class TripSummaryScreen extends StatelessWidget {
                   ],
                 ),
 
+                
+                const SizedBox(height: 14),
+
+                // Distance & Speed Metrics
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StatCard(
+                        icon: Icons.route_rounded,
+                        title: 'Distance',
+                        value: '${trip.distanceKm.toStringAsFixed(2)} km',
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _StatCard(
+                        icon: Icons.speed_rounded,
+                        title: 'Avg Speed',
+                        value: '${trip.averageSpeedKmh.toStringAsFixed(1)} km/h',
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 14),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StatCard(
+                        icon: Icons.speed_rounded,
+                        title: 'Max Speed',
+                        value: '${trip.maxSpeedKmh.toStringAsFixed(1)} km/h',
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(child: SizedBox()),
+                  ],
+                ),
+
+
                 const SizedBox(height: 24),
 
                 // Driving Status

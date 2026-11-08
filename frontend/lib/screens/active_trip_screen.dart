@@ -12,10 +12,17 @@ import '../services/sensor_data_recorder.dart';
 import '../services/sensor_filter.dart';
 import '../services/sensor_metrics_service.dart';
 import '../services/sensor_service.dart';
-
+import 'package:geolocator/geolocator.dart';
+import '../services/location_service.dart';
+import '../services/trip_data_refresh_service.dart';
 
 class ActiveTripScreen extends StatefulWidget {
-  const ActiveTripScreen({super.key});
+  final Future<void> Function()? onTripCompleted;
+
+  const ActiveTripScreen({
+    super.key,
+    this.onTripCompleted,
+  });
 
   @override
   State<ActiveTripScreen> createState() => _ActiveTripScreenState();
@@ -36,6 +43,18 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
   DrivingEventData? _lastDrivingEvent;
 
+  final LocationService _locationService = LocationService();
+
+  StreamSubscription<Position>? _locationSubscription;
+
+  Position? _lastPosition;
+
+  double _currentSpeedKmh = 0.0;
+  double _maxSpeedKmh = 0.0;
+  double _distanceTravelledMeters = 0.0;
+
+  String? _gpsErrorMessage;
+
   StreamSubscription<SensorData>? _sensorDataSubscription;
   Timer? _timer;
 
@@ -51,6 +70,7 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
 
     _startSensors();
     _startTimer();
+    _startLocationTracking();
   }
 
   void _startSensors() {
@@ -153,20 +173,170 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
     );
   }
 
+  Future<void> _startLocationTracking() async {
+  try {
+    final positionStream =
+        await _locationService.getPositionStream();
+
+    if (!mounted || !_isTripActive) return;
+
+    _locationSubscription = positionStream.listen(
+      (Position position) {
+        if (!mounted || !_isTripActive) return;
+
+        // Ignore inaccurate GPS readings.
+        if (position.accuracy > 25) return;
+
+        // Update current speed.
+        final speed = _locationService.convertSpeedToKmh(
+          position.speed < 0 ? 0 : position.speed,
+        );
+
+        double additionalDistance = 0;
+
+        if (_lastPosition != null) {
+          final distance = _locationService.calculateDistance(
+            startLatitude: _lastPosition!.latitude,
+            startLongitude: _lastPosition!.longitude,
+            endLatitude: position.latitude,
+            endLongitude: position.longitude,
+          );
+
+          final elapsedSeconds = position.timestamp
+              .difference(_lastPosition!.timestamp)
+              .inMilliseconds / 1000;
+
+          // Reject GPS jumps and very small location movements.
+          if (distance >= 3 &&
+              elapsedSeconds > 0 &&
+              distance <= (elapsedSeconds * 55.56) + 15) {
+            additionalDistance = distance;
+          }
+        }
+
+        _lastPosition = position;
+
+        setState(() {
+        _currentSpeedKmh = speed;
+
+        if (speed > _maxSpeedKmh) {
+          _maxSpeedKmh = speed;
+        }
+
+        _distanceTravelledMeters += additionalDistance;
+        _gpsErrorMessage = null;
+      });
+      },
+      onError: (error) {
+        debugPrint('GPS tracking error: $error');
+
+        if (!mounted) return;
+
+        setState(() {
+          _gpsErrorMessage =
+              'GPS signal unavailable. Check your location settings.';
+          _currentSpeedKmh = 0;
+        });
+      },
+    );
+  } catch (error) {
+    debugPrint('GPS initialization error: $error');
+
+    if (!mounted) return;
+
+    setState(() {
+      _gpsErrorMessage =
+          'GPS unavailable. Trip monitoring will continue without GPS.';
+      _currentSpeedKmh = 0;
+    });
+  }
+}
+
+
+Future<void> _cancelTrip() async {
+  if (!_isTripActive) return;
+
+  // Ask for confirmation.
+  final shouldCancel = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: const Text('Cancel Trip?'),
+        content: const Text(
+          'Are you sure you want to cancel this trip? '
+          'All recorded data will be discarded and '
+          'will not be uploaded.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, false);
+            },
+            child: const Text('KEEP TRIP'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, true);
+            },
+            child: const Text(
+              'CANCEL TRIP',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+      // User selected Keep Trip or dismissed the dialog.
+      if (shouldCancel != true || !mounted) return;
+
+      // Stop trip monitoring.
+      _isTripActive = false;
+
+      _timer?.cancel();
+      _timer = null;
+
+      await _sensorDataSubscription?.cancel();
+      _sensorDataSubscription = null;
+
+      await _locationSubscription?.cancel();
+      _locationSubscription = null;
+
+      _sensorService.stop();
+
+      // Clear recorded data without uploading.
+      _sensorDataRecorder.clear();
+
+      // Return to Home Screen.
+      if (!mounted) return;
+
+      Navigator.pop(context);
+    }
+
+
+
+
   Future<void> _stopTrip() async {
   if (!_isTripActive) return;
 
   _timer?.cancel();
   _timer = null;
 
-  _sensorDataSubscription?.cancel();
+  await _sensorDataSubscription?.cancel();
   _sensorDataSubscription = null;
+
+  await _locationSubscription?.cancel();
+  _locationSubscription = null;
 
   _sensorService.stop();
 
   _isTripActive = false;
 
-  final completedTrip = _sensorDataRecorder.stopRecording();
+  final completedTrip = _sensorDataRecorder.stopRecording(
+    distanceMeters: _distanceTravelledMeters,
+    maxSpeedKmh: _maxSpeedKmh,
+  );
 
   if (completedTrip == null) return;
 
@@ -214,6 +384,18 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
       'Event uploads completed. '
       'Success: $successfulUploads, Failed: $failedUploads',
     );
+
+    // Notify all screens after the trip and event uploads.
+    TripDataRefreshService.notifyTripDataChanged();
+
+    debugPrint('Trip data refresh notification sent.');
+
+    // Refresh Home Screen analytics after successful trip upload.
+    if (tripResult['success'] == true) {
+      await widget.onTripCompleted?.call();
+
+      debugPrint('Home Screen analytics refreshed.');
+    }
   } else {
     debugPrint(
       'Trip upload failed: ${tripResult['message']}',
@@ -344,6 +526,8 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
   void dispose() {
     _timer?.cancel();
     _sensorDataSubscription?.cancel();
+    _locationSubscription?.cancel();
+
     _sensorService.dispose();
     _sensorDataRecorder.stopRecording();
 
@@ -415,6 +599,12 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                           color: Colors.white,
                         ),
                       ),
+
+                      
+                      const SizedBox(height: 12),
+
+                     
+
                       const SizedBox(height: 20),
                       Text(
                         _formatDuration(_tripDuration),
@@ -438,6 +628,42 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                 ),
 
                 const SizedBox(height: 24),
+
+
+                // Live GPS Statistics
+              Row(
+                children: [
+                  Expanded(
+                    child: _InfoCard(
+                      icon: Icons.speed_rounded,
+                      title: 'Current Speed',
+                      value: '${_currentSpeedKmh.toStringAsFixed(1)} km/h',
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _InfoCard(
+                      icon: Icons.route_rounded,
+                      title: 'Distance',
+                      value: '${(_distanceTravelledMeters / 1000).toStringAsFixed(2)} km',
+                    ),
+                  ),
+                ],
+              ),
+
+              if (_gpsErrorMessage != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _gpsErrorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 20),
 
                 // Current Driving Status
                 _StatusCard(
@@ -486,6 +712,31 @@ class _ActiveTripScreenState extends State<ActiveTripScreen> {
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                       elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Cancel Trip
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: OutlinedButton.icon(
+                    onPressed: _cancelTrip,
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text(
+                      'CANCEL TRIP',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
